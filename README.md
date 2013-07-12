@@ -94,26 +94,26 @@ Fetching Data from the Database
 Let's take a look at an example of how to query the database, working with results. We'll query the `users` table for a user whose `id` is 1, and print out the user's `id` and `name`:
 
 ```go
-	var (
-		id int
-		name string
-	)
-	rows, err := db.Query("select id, name from users where id = ?", 1)
-	defer rows.Close()
+var (
+	id int
+	name string
+)
+rows, err := db.Query("select id, name from users where id = ?", 1)
+defer rows.Close()
+if err != nil {
+	log.Fatal(err)
+}
+for rows.Next() {
+	err := rows.Scan(&id, &name)
 	if err != nil {
 		log.Fatal(err)
 	}
-	for rows.Next() {
-		err := rows.Scan(&id, &name)
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Println(id, name)
-	}
-	err = rows.Err()
-	if err != nil {
-		log.Fatal(err)
-	}
+	log.Println(id, name)
+}
+err = rows.Err()
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 Here's what's happening in the above code:
@@ -265,6 +265,38 @@ _, err := db.Query("DELETE FROM users") // BAD
 ```
 
 The answer is no. They do **not** do the same thing, and **you should never use `Query()` like this.** The `Query()` will return a `sql.Rows`, which will not be released until it's garbage collected, which can be a long time. During that time, it will continue to hold open the underlying connection, and this anti-pattern is therefore a good way to run out of resources (too many connections, for example).
+
+Transactions
+============
+
+Transactions are units of work which often have ACID properties (atomicity, consistency, isolation, and durability).
+
+Transaction objects expose the same functions as the database.
+
+```go
+tx, err := db.Begin()
+if err != nil {
+	log.Fatal(err)
+}
+stmt, err := tx.Prepare("INSERT INTO users(name) VALUES(?)")
+if err != nil {
+	log.Fatal(err)
+}
+res, err := stmt.Exec("Dolly")
+if err != nil {
+	log.Fatal(err)
+}
+lastId, err := res.LastInsertId()
+if err != nil {
+	log.Fatal(err)
+}
+rowCnt, err := res.RowsAffected()
+if err != nil {
+	log.Fatal(err)
+}
+log.Printf("ID = %d, affected = %d\n", lastId, rowCnt)
+err = tx.Commit()
+```
 
 Surprises, Antipatterns and Limitations
 =======================================
